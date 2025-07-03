@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dietitian PulseView Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .bg-glow { background: linear-gradient(135deg, #3b82f6, #1d4ed8, #1e40af); }
+    .hover-glow:hover { 
+      box-shadow: 0 15px 35px rgba(59, 130, 246, 0.4); 
+      transform: translateY(-3px);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .chart-container { 
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .metric-card {
+      background: linear-gradient(135deg, #ffffff, #f8fafc);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    .animate-fade-in { animation: fadeIn 0.6s ease-out; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .email-modal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.8); display: none; align-items: center;
+      justify-content: center; z-index: 1000;
+    }
+    .email-modal-content {
+      background: linear-gradient(135deg, #1f2937, #111827); border-radius: 20px;
+      padding: 30px; max-width: 500px; width: 90%;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+    }
+    .email-option-btn {
+      display: block; width: 100%; padding: 12px 20px; margin: 8px 0;
+      background: linear-gradient(135deg, #3b82f6, #2563eb); color: white;
+      border: none; border-radius: 10px; cursor: pointer;
+      transition: all 0.3s ease; text-decoration: none; text-align: center;
+    }
+    .email-option-btn:hover {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      transform: translateY(-2px); box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3);
+    }
+    .copy-success {
+      color: #10b981; font-size: 14px; margin-top: 5px;
+      opacity: 0; transition: opacity 0.3s ease;
+    }
+    .copy-success.show { opacity: 1; }
+  </style>
+</head>
+<body class="bg-neutral-900 text-white min-h-screen">
+  <header class="bg-glow text-center py-8 shadow-2xl">
+    <div class="animate-fade-in">
+      <h1 class="text-4xl font-bold tracking-tight">💰 Dietitian PulseView Dashboard</h1>
+      <p class="text-lg mt-2 text-white/90">Live pay trends. Instant filters. Built for speed.</p>
+      <div class="mt-3 text-white/70">
+        <span class="text-sm">32 Active Positions • 15 States • Real-Time Data</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Metrics Cards -->
+  <section class="grid grid-cols-2 md:grid-cols-4 gap-6 p-8 animate-fade-in">
+    <div class="metric-card text-neutral-900 rounded-3xl p-6 text-center shadow-xl hover-glow">
+      <div class="text-blue-600 text-2xl mb-2">💵</div>
+      <p class="text-sm font-bold text-gray-600 uppercase tracking-wider">Avg Weekly Pay</p>
+      <p class="text-3xl font-black mt-2" id="avgPay">–</p>
+    </div>
+    <div class="metric-card text-neutral-900 rounded-3xl p-6 text-center shadow-xl hover-glow">
+      <div class="text-green-600 text-2xl mb-2">🎯</div>
+      <p class="text-sm font-bold text-gray-600 uppercase tracking-wider">Top Weekly Pay</p>
+      <p class="text-3xl font-black mt-2" id="topPay">–</p>
+    </div>
+    <div class="metric-card text-neutral-900 rounded-3xl p-6 text-center shadow-xl hover-glow">
+      <div class="text-purple-600 text-2xl mb-2">📊</div>
+      <p class="text-sm font-bold text-gray-600 uppercase tracking-wider">Total Jobs</p>
+      <p class="text-3xl font-black mt-2" id="totalJobs">–</p>
+    </div>
+    <div class="metric-card text-neutral-900 rounded-3xl p-6 text-center shadow-xl hover-glow">
+      <div class="text-orange-600 text-2xl mb-2">⏱️</div>
+      <p class="text-sm font-bold text-gray-600 uppercase tracking-wider">Avg Duration</p>
+      <p class="text-3xl font-black mt-2" id="avgDuration">–</p>
+    </div>
+  </section>
+
+  <!-- Visual Analytics -->
+  <section class="p-8 animate-fade-in">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div class="chart-container rounded-3xl p-8">
+        <h3 class="text-xl font-bold mb-6 text-white flex items-center">
+          <span class="mr-3 text-2xl">📊</span> Top Recruiters
+        </h3>
+        <canvas id="recruiterChart" width="400" height="250"></canvas>
+      </div>
+      <div class="chart-container rounded-3xl p-8">
+        <h3 class="text-xl font-bold mb-6 text-white flex items-center">
+          <span class="mr-3 text-2xl">💰</span> Pay by State
+        </h3>
+        <canvas id="payChart" width="400" height="250"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- Enhanced Filters -->
+  <section class="p-8 animate-fade-in">
+    <div class="bg-white/10 backdrop-blur-lg rounded-3xl p-6 grid grid-cols-1 md:grid-cols-6 gap-6 shadow-2xl border border-white/20">
+      <input id="searchInput" type="text" placeholder="🔍 Search facilities..." 
+             class="p-3 rounded-xl bg-white/20 text-white placeholder-white/60 border border-white/30 focus:ring-2 focus:ring-blue-400 focus:bg-white/30 transition-all" />
+      <select id="stateFilter" class="p-3 rounded-xl bg-white/20 text-white border border-white/30 focus:ring-2 focus:ring-blue-400 transition-all">
+        <option value="" class="text-black">All States</option>
+      </select>
+      <select id="recruiterFilter" class="p-3 rounded-xl bg-white/20 text-white border border-white/30 focus:ring-2 focus:ring-blue-400 transition-all">
+        <option value="" class="text-black">All Recruiters</option>
+      </select>
+      <div class="col-span-2 bg-white/10 rounded-xl p-4">
+        <label class="block text-sm font-medium mb-2">Pay Range: <span id="payRange" class="text-blue-400">$1,000 - $3,000</span></label>
+        <div class="flex items-center space-x-3">
+          <span class="text-xs">$1K</span>
+          <input type="range" id="minPay" min="1000" max="3000" step="100" value="1000" class="flex-1 accent-blue-500">
+          <input type="range" id="maxPay" min="1000" max="3000" step="100" value="3000" class="flex-1 accent-blue-500">
+          <span class="text-xs">$3K</span>
+        </div>
+      </div>
+      <button id="clearFilters" 
+              class="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 hover:from-blue-700 hover:via-blue-800 hover:to-blue-900 text-white rounded-xl p-3 font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105">
+        Clear All
+      </button>
+    </div>
+  </section>
+
+  <!-- Enhanced Table -->
+  <section class="p-8 animate-fade-in">
+    <div class="bg-white/5 backdrop-blur-lg rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+      <div class="p-4 bg-white/10 border-b border-white/20 flex justify-between items-center">
+        <h2 class="text-lg font-bold text-white">Job Listings</h2>
+        <div class="flex space-x-3">
+          <button id="exportCSV" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">📥 Export CSV</button>
+          <button id="printView" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">🖨️ Print</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-neutral-800/80 text-white">
+            <tr>
+              <th class="p-4 text-left cursor-pointer hover:bg-neutral-700 transition-colors" onclick="sortBy('Job ID')">
+                <div class="flex items-center space-x-2"><span class="font-bold">Job ID</span><span id="sort-Job ID" class="text-blue-400"></span></div>
+              </th>
+              <th class="p-4 text-left cursor-pointer hover:bg-neutral-700 transition-colors" onclick="sortBy('Facility')">
+                <div class="flex items-center space-x-2"><span class="font-bold">Facility</span><span id="sort-Facility" class="text-blue-400"></span></div>
+              </th>
+              <th class="p-4 text-left cursor-pointer hover:bg-neutral-700 transition-colors" onclick="sortBy('Location')">
+                <div class="flex items-center space-x-2"><span class="font-bold">Location</span><span id="sort-Location" class="text-blue-400"></span></div>
+              </th>
+              <th class="p-4 text-left cursor-pointer hover:bg-neutral-700 transition-colors" onclick="sortBy('Weekly Pay')">
+                <div class="flex items-center space-x-2"><span class="font-bold">Weekly Pay</span><span id="sort-Weekly Pay" class="text-blue-400"></span></div>
+              </th>
+              <th class="p-4 text-left cursor-pointer hover:bg-neutral-700 transition-colors" onclick="sortBy('Start Date')">
+                <div class="flex items-center space-x-2"><span class="font-bold">Start Date</span><span id="sort-Start Date" class="text-blue-400"></span></div>
+              </th>
+              <th class="p-4 text-left cursor-pointer hover:bg-neutral-700 transition-colors" onclick="sortBy('Last Interest Date')">
+                <div class="flex items-center space-x-2"><span class="font-bold">Last Interest</span><span id="sort-Last Interest Date" class="text-blue-400"></span></div>
+              </th>
+              <th class="p-4 text-left">Applicants</th>
+              <th class="p-4 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="jobsBody" class="bg-neutral-800/40"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Email Modal -->
+  <div id="emailModal" class="email-modal">
+    <div class="email-modal-content">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-xl font-bold text-white">Contact Applicant</h3>
+        <button onclick="closeEmailModal()" class="text-white/60 hover:text-white text-2xl">&times;</button>
+      </div>
+      <div id="emailModalContent"></div>
+    </div>
+  </div>
+
+  <script>
+    const applicantEmails = {
+      "Sheila Mae Gabe": "sheilamaegabe@gmail.com", "Adelina Lee": "adelinalee@gmail.com", "Brooke Rich": "brookerich1010@gmail.com",
+      "Kimberly Shante Brown": "kimsbrown21@gmail.com", "laquwon baldwin": "Laquwonbaldwin.biz@gmail.com", "Joelle Dunklin": "joelledunklin544@gmail.com",
+      "Yohantus Gardner": "yoyogardner2@gmail.com", "Vanessa Clermont": "vclermont29@gmail.com", "Marielle Olson": "marielleolson17@gmail.com",
+      "Tiffany Arvin": "tiffanyarvin13@gmail.com", "Karen Wong-Li": "hoi_wan@yahoo.com", "Sarah Szmaciasz": "sszmaciasz@gmail.com",
+      "Ivana Murillo": "ivanamurillordn@gmail.com", "Deanna Schmidt": "Dschmidt01@yahoo.com", "Stephanie Secontine": "sgsecontine@gmail.com",
+      "Tangela Kindell": "tangela.kindell@gmail.com", "Duncan Anderson": "duncananderson00@gmail.com", "Sofia A Sepulveda": "sasepulv96@outlook.com",
+      "Lauren Higganbotham Espino": "ldhespino@gmail.com", "Elizabeth Wos": "woselizabeth@hotmail.com", "Nellie Jamieson": "nelliejamieson1962@gmail.com",
+      "Rachel Brooks": "rachelbrooks808@gmail.com", "Khalilah Copeland": "kaecope@gmail.com", "Jamesia Belk": "jamesiabelk@gmail.com",
+      "Trinity  Gray": "trinityjoy518@gmail.com", "Robert Benford": "pmovement0701@gmail.com", "Maurice Saunders": "mrsaunders07@yahoo.com",
+      "Kathryn Power": "kapow41100@gmail.com", "Lauren Lea": "laurenrlea@gmail.com", "Katherine Bode": "bode.katherine0407@gmail.com",
+      "Tyler Arrington ": "gabby96.ta@gmail.com", "Jennifer Carman": "playingwithfood@hotmail.com", "Aliyah Brewton": "liyahbrewton0@gmail.com",
+      "Sukaineh Zabarah": "sukainahali97@gmail.com", "Brittany marsh": "brittanycleaningservicellc@gmail.com", "Kylie Arsenault": "arsenky1222@gmail.com",
+      "Latrice Boykin": "Triceboykin85@gmail.com", "Jessica Beaven": "jessibeaven@gmail.com", "Lindsey Hayward": "mulahhhayward@gmail.com",
+      "Khadijat Jimoh": "kh.jimoh@gmail.com"
+    };
+
+    const jobData = [
+      {"Job ID": 2945082, "Facility": "Dartmouth-Hitchcock Medical Center", "City": "Lebanon", "State": "New Hampshire", "Weekly Pay": 2630.2, "Length": 13, "Applicant": ["Sheila Mae Gabe", "Adelina Lee", "Brooke Rich", "Kimberly Shante Brown"], "Recruiter": ["Application Review", "Kofi Farkye"], "Start Date": "07/28/2025", "Posted Date": "07/01/2025", "Shift": "DAY", "Title": "Nutrition Support Lead Dietitian - 64783", "Interview Status": null, "Last Interest Date": "2025-07-02T21:07:14.730Z"},
+      {"Job ID": 2942151, "Facility": "Adventist Health Sonora", "City": "Sonora", "State": "California", "Weekly Pay": 2648.8, "Length": 13, "Applicant": ["Adelina Lee", "Kimberly Shante Brown"], "Recruiter": ["Kofi Farkye"], "Start Date": "07/21/2025", "Posted Date": "06/30/2025", "Shift": "DAY", "Title": "12160 av. Registered Dietitian Days", "Interview Status": null, "Last Interest Date": "2025-07-02T02:21:22.370Z"},
+      {"Job ID": 2925908, "Facility": "MedStar Georgetown University Hospital", "City": "Washington", "State": "District of Columbia", "Weekly Pay": 2640.0, "Length": 19, "Applicant": ["Kimberly Shante Brown", "Joelle Dunklin", "Stephanie Secontine", "Duncan Anderson", "Brooke Rich"], "Recruiter": ["Kofi Farkye", "Torie Ludwig", "Application Review"], "Start Date": "07/28/2025", "Posted Date": "06/12/2025", "Shift": "DAY", "Title": "#2YRS - Registered Dietitian - M-F 5x8 D- 26 wks", "Interview Status": "Client Offer", "Last Interest Date": "2025-07-01T22:38:46.253Z"},
+      {"Job ID": 2940022, "Facility": "Ventura County Medical Center", "City": "Ventura", "State": "California", "Weekly Pay": 2437.0, "Length": 13, "Applicant": ["Kimberly Shante Brown"], "Recruiter": ["Kofi Farkye"], "Start Date": "07/21/2025", "Posted Date": "06/26/2025", "Shift": "DAY", "Title": "2 YRS EXP - REGISTERED DIETICIAN - 1ST TIMERS OK", "Interview Status": "Client Offer", "Last Interest Date": "2025-07-01T17:12:42.667Z"},
+      {"Job ID": 2923877, "Facility": "UC Davis Medical Center", "City": "Sacramento", "State": "California", "Weekly Pay": 2242.0, "Length": 13, "Applicant": ["Kimberly Shante Brown", "Yohantus Gardner", "Sofia A Sepulveda", "Elizabeth Wos", "Lauren Higganbotham Espino", "Brooke Rich"], "Recruiter": ["Harley Taylor", "Kofi Farkye"], "Start Date": "07/28/2025", "Posted Date": "06/11/2025", "Shift": "DAY", "Title": "1st TIME OK/ 2 YR EXP- Dietitian- Days", "Interview Status": "Client Offer", "Last Interest Date": "2025-07-01T17:12:21.450Z"},
+      {"Job ID": 2934068, "Facility": "William P Clements Jr University Hospital", "City": "Dallas", "State": "Texas", "Weekly Pay": 2395.0, "Length": 13, "Applicant": ["Kimberly Shante Brown", "Brooke Rich", "Vanessa Clermont", "Marielle Olson", "Yohantus Gardner", "Lindsey Hayward", "Khadijat Jimoh"], "Recruiter": ["Kofi Farkye", "Application Review", "Harley Taylor", "Needs Review", "Torie Ludwig"], "Start Date": "07/21/2025", "Posted Date": "06/20/2025", "Shift": "DAY", "Title": "LOCAL OK - Registered Dietician", "Interview Status": "Client Offer", "Last Interest Date": "2025-07-01T17:09:10.387Z"},
+      {"Job ID": 2943139, "Facility": "New York City Health + Hospitals - Central Office - 50 Water Street", "City": "New York City", "State": "New York", "Weekly Pay": 2201.0, "Length": 13, "Applicant": ["Yohantus Gardner"], "Recruiter": ["Harley Taylor"], "Start Date": "07/14/2025", "Posted Date": "06/30/2025", "Shift": "DAY", "Title": "36133343 Registered Dietician (000359)", "Interview Status": null, "Last Interest Date": "2025-07-01T00:10:54.703Z"},
+      {"Job ID": 2943179, "Facility": "NYC Health and Hospitals Lincoln", "City": "Bronx", "State": "New York", "Weekly Pay": 1900.0, "Length": 13, "Applicant": ["Yohantus Gardner"], "Recruiter": ["Harley Taylor"], "Start Date": "07/21/2025", "Posted Date": "06/30/2025", "Shift": "DAY", "Title": "36022971 Registered Dietician (000359)", "Interview Status": null, "Last Interest Date": "2025-07-01T00:11:01.970Z"},
+      {"Job ID": 2942719, "Facility": "Providence ElderPlace - MLK", "City": "Seattle", "State": "Washington", "Weekly Pay": 2185.4, "Length": 13, "Applicant": ["Yohantus Gardner"], "Recruiter": ["Harley Taylor"], "Start Date": "07/28/2025", "Posted Date": "06/30/2025", "Shift": "DAY", "Title": "1 YR - Registered Dietitian - Seattle WA - 8h Days", "Interview Status": "Client Offer", "Last Interest Date": "2025-07-01T00:12:20.963Z"},
+      {"Job ID": 2941864, "Facility": "Beth Israel Deaconess Hospital Plymouth", "City": "Plymouth", "State": "Massachusetts", "Weekly Pay": 1820.0, "Length": 13, "Applicant": ["Joelle Dunklin"], "Recruiter": ["Torie Ludwig"], "Start Date": "07/14/2025", "Posted Date": "06/27/2025", "Shift": "DAY", "Title": "153553 Registered Dietician 8H Day", "Interview Status": null, "Last Interest Date": "2025-06-30T23:28:28.850Z"},
+      {"Job ID": 2938236, "Facility": "Baptist Hospitals of Southeast Texas", "City": "Beaumont", "State": "Texas", "Weekly Pay": 2454.8, "Length": 13, "Applicant": ["laquwon baldwin"], "Recruiter": ["Application Review"], "Start Date": "07/14/2025", "Posted Date": "06/25/2025", "Shift": "DAY", "Title": "1YR/1STTIMER/M-F/Dietician-D", "Interview Status": null, "Last Interest Date": "2025-06-29T17:25:26.783Z"},
+      {"Job ID": 2919379, "Facility": "Sampson Regional Medical Center", "City": "Clinton", "State": "North Carolina", "Weekly Pay": 2242.4, "Length": 13, "Applicant": ["Khalilah Copeland", "Brooke Rich", "Nellie Jamieson", "laquwon baldwin"], "Recruiter": ["Morgan Ackermann", "Kofi Farkye", "Mike Crowther", "Application Review"], "Start Date": "07/14/2025", "Posted Date": "06/06/2025", "Shift": "DAY", "Title": "2YR/1STTIMER/50RR/NCLICREQ/HOSP DIETICAN-D", "Interview Status": null, "Last Interest Date": "2025-06-29T17:25:26.783Z"},
+      {"Job ID": 2936865, "Facility": "NYC Health + Hospitals McKinney", "City": "Brooklyn", "State": "New York", "Weekly Pay": 2201.0, "Length": 13, "Applicant": ["Yohantus Gardner", "Lindsey Hayward"], "Recruiter": ["Harley Taylor", "Needs Review"], "Start Date": "07/21/2025", "Posted Date": "06/24/2025", "Shift": "DAY", "Title": "35933771 Registered Dietician (000359)", "Interview Status": null, "Last Interest Date": "2025-06-26T12:57:01.683Z"},
+      {"Job ID": 2929603, "Facility": "Le Bonheur Childrens Hospital", "City": "Memphis", "State": "Tennessee", "Weekly Pay": 2244.6, "Length": 13, "Applicant": ["Lindsey Hayward", "Stephanie Secontine"], "Recruiter": ["Needs Review", "Kofi Farkye"], "Start Date": "07/14/2025", "Posted Date": "06/17/2025", "Shift": "DAY", "Title": "2 YRS EXP/TN Lic REQ/PEDS/ 100 mi RR", "Interview Status": null, "Last Interest Date": "2025-06-24T21:33:13.870Z"},
+      {"Job ID": 2856808, "Facility": "Franciscan Health Michigan City", "City": "Michigan City", "State": "Indiana", "Weekly Pay": 1279.0, "Length": 13, "Applicant": ["Lindsey Hayward", "Brooke Rich", "Khalilah Copeland", "Jamesia Belk", "Brittany marsh"], "Recruiter": ["Needs Review", "Kofi Farkye", "Morgan Ackermann", "Application Review"], "Start Date": "06/02/2025", "Posted Date": "04/08/2025", "Shift": "DAY", "Title": "917834 HT Travel - Registered Dietitian - Part time (8:00A - 4:00P)", "Interview Status": null, "Last Interest Date": "2025-06-24T21:36:15.440Z"},
+      {"Job ID": 2811469, "Facility": "Franciscan Physician Network Orthopedic Indianapolis", "City": "Indianapolis", "State": "Indiana", "Weekly Pay": 2189.0, "Length": 12, "Applicant": ["Lindsey Hayward", "Brooke Rich", "Lauren Higganbotham Espino", "Jamesia Belk", "Kimberly Shante Brown", "Kylie Arsenault", "Latrice Boykin", "Jessica Beaven"], "Recruiter": ["Needs Review", "Kofi Farkye", "Application Review", "Christina Laupert", "Torie Ludwig"], "Start Date": "06/02/2025", "Posted Date": "03/03/2025", "Shift": "DAY", "Title": "907272 HT Travel - Registered Dietitian - (8A - 5P)", "Interview Status": null, "Last Interest Date": "2025-06-24T21:35:43.463Z"},
+      {"Job ID": 2930123, "Facility": "Cone Health - System Wide", "City": "Greensboro", "State": "North Carolina", "Weekly Pay": 2036.0, "Length": 12, "Applicant": ["Lindsey Hayward", "Tangela Kindell"], "Recruiter": ["Needs Review", "Application Review"], "Start Date": "07/29/2025", "Posted Date": "06/17/2025", "Shift": "DAY", "Title": "113810:1yr&1st timer-NC LIC & Acute Care REQ!", "Interview Status": "Client Offer", "Last Interest Date": "2025-06-24T21:33:01.893Z"},
+      {"Job ID": 2932414, "Facility": "Select Specialty Hospital - Columbus South", "City": "Columbus", "State": "Ohio", "Weekly Pay": 2168.0, "Length": 13, "Applicant": ["Tiffany Arvin", "Lindsey Hayward", "Yohantus Gardner", "Brooke Rich"], "Recruiter": ["Application Review", "Needs Review", "Harley Taylor", "Kofi Farkye"], "Start Date": "07/18/2025", "Posted Date": "06/19/2025", "Shift": "DAY", "Title": "1YR-dietitian-local OK-(Day)-766412", "Interview Status": null, "Last Interest Date": "2025-06-24T21:35:53.010Z"},
+      {"Job ID": 2931113, "Facility": "LBH - Levindale Hebrew Geriatric Center and Hospital", "City": "Baltimore", "State": "Maryland", "Weekly Pay": 2319.0, "Length": 14, "Applicant": ["Lindsey Hayward", "Joelle Dunklin", "Sarah Szmaciasz", "Deanna Schmidt"], "Recruiter": ["Needs Review", "Torie Ludwig", "Allie Bauer", "McKenna Ledesma"], "Start Date": "07/21/2025", "Posted Date": "06/18/2025", "Shift": "DAY", "Title": "Dietitian/1 yr exp/1st time travelers ok", "Interview Status": "Client Offer", "Last Interest Date": "2025-06-24T21:32:51.927Z"},
+      {"Job ID": 2936188, "Facility": "University of Maryland Mt. Washington Pediatric Hospital, Inc. Baltimore", "City": "Baltimore", "State": "Maryland", "Weekly Pay": 2165.0, "Length": 13, "Applicant": ["Lindsey Hayward"], "Recruiter": ["Needs Review"], "Start Date": "07/28/2025", "Posted Date": "06/24/2025", "Shift": "DAY", "Title": "2YR/1ST TIMER- PEDS DIETICIAN - M-F DAYS 40H", "Interview Status": "Aya Offer", "Last Interest Date": "2025-06-24T21:34:16.050Z"},
+      {"Job ID": 2929534, "Facility": "Midland Memorial Hospital", "City": "Midland", "State": "Texas", "Weekly Pay": 2497.2, "Length": 13, "Applicant": ["Lindsey Hayward", "Brooke Rich", "Karen Wong-Li", "Ivana Murillo"], "Recruiter": ["Morganne Flores", "Needs Review", "Kofi Farkye"], "Start Date": "07/28/2025", "Posted Date": "06/17/2025", "Shift": "DAY", "Title": "#1st time ok - RD - 2 YRS REQ", "Interview Status": "Client Offer", "Last Interest Date": "2025-06-18T22:45:59.137Z"},
+      {"Job ID": 2904738, "Facility": "Piedmont Athens Regional Medical Center", "City": "Athens", "State": "Georgia", "Weekly Pay": 2362.0, "Length": 14, "Applicant": ["Ivana Murillo", "Robert Benford"], "Recruiter": ["Morganne Flores", "WFD-Brooke Abbatico"], "Start Date": "07/14/2025", "Posted Date": "05/23/2025", "Shift": "DAY", "Title": "1ST TIMER-1YR-DIETITIAN DAYS-14WKS-PJO-20414", "Interview Status": "Client Offer", "Last Interest Date": "2025-06-17T14:33:25.970Z"},
+      {"Job ID": 2912110, "Facility": "Cone Health - System Wide", "City": "Greensboro", "State": "North Carolina", "Weekly Pay": 2036.0, "Length": 12, "Applicant": ["Nellie Jamieson", "Yohantus Gardner"], "Recruiter": ["Mike Crowther", "Harley Taylor"], "Start Date": "07/29/2025", "Posted Date": "05/30/2025", "Shift": "DAY", "Title": "124727: 1yr&1st timer-Lg Faclity & Acute Care REQ!", "Interview Status": "Client Offer", "Last Interest Date": "2025-06-10T12:42:09.553Z"},
+      {"Job ID": 2907121, "Facility": "Mercy Medical Center Merced", "City": "Merced", "State": "California", "Weekly Pay": 2141.0, "Length": 13, "Applicant": ["Rachel Brooks", "Khalilah Copeland", "Jamesia Belk", "Maurice Saunders", "Kathryn Power"], "Recruiter": ["Application Review", "Morgan Ackermann", "Needs Review"], "Start Date": "06/30/2025", "Posted Date": "05/27/2025", "Shift": "DAY", "Title": "889313 sm. Dietary 8 hours", "Interview Status": null, "Last Interest Date": "2025-06-10T00:34:01.320Z"},
+      {"Job ID": 2913239, "Facility": "Piedmont Fayette Hospital", "City": "Fayetteville", "State": "Georgia", "Weekly Pay": 2232.4, "Length": 12, "Applicant": ["Trinity  Gray"], "Recruiter": ["Cody Coovert"], "Start Date": "07/21/2025", "Posted Date": "06/02/2025", "Shift": "DAY", "Title": "#3YR DIETITIAN GA LIC/EPIC REQ AM 12W PJO-20158", "Interview Status": "Aya Offer", "Last Interest Date": "2025-06-03T15:09:30.997Z"},
+      {"Job ID": 2889259, "Facility": "Piedmont Fayette Hospital", "City": "Fayetteville", "State": "Georgia", "Weekly Pay": 2317.6, "Length": 12, "Applicant": ["Robert Benford"], "Recruiter": ["WFD-Brooke Abbatico"], "Start Date": "07/21/2025", "Posted Date": "05/08/2025", "Shift": "DAY", "Title": "1YR DIETITIAN GA LIC/EPIC REQ AM 12W PJO-20327", "Interview Status": "Aya Offer", "Last Interest Date": "2025-06-02T00:55:40.913Z"},
+      {"Job ID": 2899996, "Facility": "Piedmont Henry Hospital", "City": "Stockbridge", "State": "Georgia", "Weekly Pay": 2275.2, "Length": 7, "Applicant": ["Robert Benford", "Tyler Arrington "], "Recruiter": ["WFD-Brooke Abbatico", "Kofi Farkye"], "Start Date": "07/21/2025", "Posted Date": "05/19/2025", "Shift": "DAY", "Title": "1ST TIMER-1YR-DIETITIAN DAYS-7WKS-PJO-20835", "Interview Status": "Client Offer", "Last Interest Date": "2025-06-02T00:55:49.243Z"},
+      {"Job ID": 2897881, "Facility": "MedStar Georgetown University Hospital", "City": "Washington", "State": "District of Columbia", "Weekly Pay": 2640.0, "Length": 19, "Applicant": ["Lauren Lea", "Ivana Murillo", "Katherine Bode", "Vanessa Clermont", "Jennifer Carman", "Aliyah Brewton", "Sukaineh Zabarah"], "Recruiter": ["Brandon Tominello", "Morganne Flores", "Application Review", "Kofi Farkye", "Julian Agent", "Alexis Gosse"], "Start Date": "07/28/2025", "Posted Date": "05/16/2025", "Shift": "DAY", "Title": "2YRS - Registered Dietitian - M-F 5 x 8 Days", "Interview Status": "Client Offer", "Last Interest Date": "2025-05-27T15:48:25.907Z"},
+      {"Job ID": 2943599, "Facility": "Baptist Health Hardin", "City": "Elizabethtown", "State": "Kentucky", "Weekly Pay": 1954.0, "Length": 13, "Applicant": [], "Recruiter": [], "Start Date": "07/28/2025", "Posted Date": "07/01/2025", "Shift": "DAY", "Title": "Dietitian-2yrs-EPIC REQ-1st time travel ok", "Interview Status": "Aya Offer", "Last Interest Date": null},
+      {"Job ID": 2941338, "Facility": "Kaweah Delta Health Care District", "City": "Visalia", "State": "California", "Weekly Pay": 2106.0, "Length": 13, "Applicant": [], "Recruiter": [], "Start Date": "06/27/2025", "Posted Date": "06/27/2025", "Shift": "DAY", "Title": "Dietitian Traveler", "Interview Status": null, "Last Interest Date": null},
+      {"Job ID": 2945077, "Facility": "Dartmouth-Hitchcock Medical Center", "City": "Lebanon", "State": "New Hampshire", "Weekly Pay": 2347.0, "Length": 13, "Applicant": [], "Recruiter": [], "Start Date": "07/28/2025", "Posted Date": "07/01/2025", "Shift": "DAY", "Title": "Clinical Dietitian I - 64781", "Interview Status": null, "Last Interest Date": null},
+      {"Job ID": 2945078, "Facility": "Dartmouth-Hitchcock Medical Center", "City": "Lebanon", "State": "New Hampshire", "Weekly Pay": 2347.0, "Length": 13, "Applicant": [], "Recruiter": [], "Start Date": "07/28/2025", "Posted Date": "07/01/2025", "Shift": "DAY", "Title": "Clinical Dietitian II - 64782", "Interview Status": null, "Last Interest Date": null}
+    ];
+
+    let filteredJobs = [...jobData];
+    let currentSort = { column: null, direction: 'asc' };
+
+    document.addEventListener('DOMContentLoaded', function() {
+      setupFilters();
+      renderJobs();
+      updateMetrics();
+      updateCharts();
+    });
+
+    function updateMetrics() {
+      const pays = filteredJobs.map(j => j["Weekly Pay"]);
+      const durations = filteredJobs.map(j => j.Length);
+      const avgPay = pays.reduce((a, b) => a + b, 0) / pays.length;
+      const topPay = Math.max(...pays);
+      const avgDuration = durations.reduce((a, b) => a + b, 0) / durations.length;
+      document.getElementById('avgPay').textContent = `$${Math.round(avgPay).toLocaleString()}`;
+      document.getElementById('topPay').textContent = `$${Math.round(topPay).toLocaleString()}`;
+      document.getElementById('totalJobs').textContent = filteredJobs.length;
+      document.getElementById('avgDuration').textContent = `${avgDuration.toFixed(1)} weeks`;
+    }
+
+    function renderJobs() {
+      const tbody = document.getElementById("jobsBody");
+      tbody.innerHTML = "";
+      filteredJobs.forEach((job, index) => {
+        const row = document.createElement("tr");
+        row.className = "hover:bg-white/5 transition-all duration-300 border-b border-white/10";
+        row.style.animationDelay = `${index * 50}ms`;
+        row.innerHTML = `
+          <td class="p-4 text-blue-400 font-mono text-sm">${job["Job ID"] || 'N/A'}</td>
+          <td class="p-4 font-bold text-white">${job.Facility}</td>
+          <td class="p-4 text-gray-300">${job.City}, ${job.State}</td>
+          <td class="p-4 text-green-400 font-black text-lg">$${job["Weekly Pay"].toLocaleString()}</td>
+          <td class="p-4 text-orange-400 font-semibold">${job["Start Date"] || 'TBD'}</td>
+          <td class="p-4 text-purple-400 font-semibold text-xs">${job["Last Interest Date"] ? new Date(job["Last Interest Date"]).toLocaleDateString() : 'None'}</td>
+          <td class="p-4 text-sm">
+            <div class="flex flex-wrap gap-1">
+              ${job.Applicant?.length ? 
+                job.Applicant.slice(0, 3).map(name => {
+                  const email = applicantEmails[name];
+                  if (email) {
+                    return `<button onclick="openEmailModal('${name.replace(/'/g, "\\'")}', '${email}', '${job.Facility.replace(/'/g, "\\'")}', ${job["Job ID"]}, '${job.City}', '${job.State}', ${job["Weekly Pay"]}, ${job.Length}, '${job["Start Date"] || 'TBD'}')"
+                            class="bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 hover:text-blue-200 px-2 py-1 rounded-full text-xs transition-colors cursor-pointer border border-blue-500/30 hover:border-blue-400/50"
+                            title="Click to contact ${name}">📧 ${name}</button>`;
+                  } else {
+                    return `<span class="bg-gray-600/20 text-gray-400 px-2 py-1 rounded-full text-xs" title="No email available">${name}</span>`;
+                  }
+                }).join('') +
+                (job.Applicant.length > 3 ? 
+                  `<span class="bg-gray-600/20 text-gray-400 px-2 py-1 rounded-full text-xs cursor-pointer" 
+                          onclick="showAllApplicants('${job.Facility.replace(/'/g, "\\'")}', ${job["Job ID"]})"
+                          title="Click to see all ${job.Applicant.length} applicants">+${job.Applicant.length - 3} more</span>` 
+                  : '')
+                : '<span class="text-gray-500 italic">None</span>'}
+            </div>
+          </td>
+          <td class="p-4 text-center">
+            <button class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-300 transform hover:scale-105" 
+                    onclick="viewJobDetails('${job.Facility.replace(/'/g, "\\'")}', ${job["Job ID"] || 0})">View Details</button>
+          </td>`;
+        tbody.appendChild(row);
+      });
+      updateMetrics();
+      updateCharts();
+    }
+
+    function setupFilters() {
+      const allStates = [...new Set(jobData.map(j => j.State))].sort();
+      const stateSelect = document.getElementById('stateFilter');
+      allStates.forEach(state => {
+        const opt = document.createElement('option');
+        opt.value = state;
+        opt.textContent = state;
+        opt.className = 'text-black';
+        stateSelect.appendChild(opt);
+      });
+
+      const allRecruiters = [...new Set(jobData.flatMap(j => j.Recruiter))].filter(r => r !== 'Application Review' && r !== 'Needs Review').sort();
+      const recruiterSelect = document.getElementById('recruiterFilter');
+      allRecruiters.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r;
+        opt.className = 'text-black';
+        recruiterSelect.appendChild(opt);
+      });
+
+      document.getElementById('searchInput').addEventListener('input', applyFilters);
+      document.getElementById('stateFilter').addEventListener('change', applyFilters);
+      document.getElementById('recruiterFilter').addEventListener('change', applyFilters);
+      document.getElementById('minPay').addEventListener('input', applyFilters);
+      document.getElementById('maxPay').addEventListener('input', applyFilters);
+      document.getElementById('clearFilters').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('stateFilter').value = '';
+        document.getElementById('recruiterFilter').value = '';
+        document.getElementById('minPay').value = 1000;
+        document.getElementById('maxPay').value = 3000;
+        document.getElementById('payRange').textContent = '$1,000 - $3,000';
+        filteredJobs = [...jobData];
+        renderJobs();
+      });
+      document.getElementById('exportCSV').addEventListener('click', exportToCSV);
+      document.getElementById('printView').addEventListener('click', () => window.print());
+    }
+
+    let filterTimeout;
+    function applyFilters() {
+      clearTimeout(filterTimeout);
+      filterTimeout = setTimeout(() => {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const state = document.getElementById('stateFilter').value;
+        const recruiter = document.getElementById('recruiterFilter').value;
+        const minPay = parseInt(document.getElementById('minPay').value);
+        const maxPay = parseInt(document.getElementById('maxPay').value);
+        document.getElementById('payRange').textContent = `$${minPay.toLocaleString()} - $${maxPay.toLocaleString()}`;
+        filteredJobs = jobData.filter(job => {
+          const matchesSearch = job.Facility.toLowerCase().includes(search) || job.City.toLowerCase().includes(search) || job.State.toLowerCase().includes(search);
+          const matchesState = !state || job.State === state;
+          const matchesRecruiter = !recruiter || job.Recruiter.includes(recruiter);
+          const matchesPay = job["Weekly Pay"] >= minPay && job["Weekly Pay"] <= maxPay;
+          return matchesSearch && matchesState && matchesRecruiter && matchesPay;
+        });
+        renderJobs();
+      }, 300);
+    }
+
+    function sortBy(column) {
+      let key;
+      if (column === 'Location') key = job => `${job.City}, ${job.State}`;
+      else if (column === 'Start Date') key = job => new Date(job["Start Date"] || '2099-12-31');
+      else if (column === 'Last Interest Date') key = job => new Date(job["Last Interest Date"] || '1900-01-01');
+      else if (column === 'Job ID') key = job => job["Job ID"] || 0;
+      else key = job => job[column];
+      
+      const direction = currentSort.column === column && currentSort.direction === 'asc' ? 'desc' : 'asc';
+      currentSort = { column, direction };
+      
+      filteredJobs.sort((a, b) => {
+        const valA = key(a);
+        const valB = key(b);
+        if (valA < valB) return direction === 'asc' ? -1 : 1;
+        if (valA > valB) return direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+      
+      ['Job ID', 'Facility', 'Location', 'Weekly Pay', 'Start Date', 'Last Interest Date'].forEach(col => {
+        const el = document.getElementById(`sort-${col}`);
+        if (el) el.textContent = col === column ? (direction === 'asc' ? '↑' : '↓') : '';
+      });
+      renderJobs();
+    }
+
+    function viewJobDetails(facility, jobId) {
+      const job = jobData.find(j => j.Facility === facility && j["Job ID"] === jobId);
+      if (!job) return;
+      const applicantList = job.Applicant.length > 0 ? job.Applicant.join('\n• ') : 'None';
+      const recruiterList = job.Recruiter.length > 0 ? job.Recruiter.join('\n• ') : 'None';
+      alert(`🏥 ${job.Facility}\n\n📍 Location: ${job.City}, ${job.State}\n🆔 Job ID: ${job["Job ID"]}\n💰 Weekly Pay: $${job["Weekly Pay"].toLocaleString()}\n⏱️ Duration: ${job.Length} weeks\n🗓️ Start Date: ${job["Start Date"] || 'TBD'}\n📋 Title: ${job.Title || 'N/A'}\n🔄 Status: ${job["Interview Status"] || 'Open'}\n\n👥 Applicants (${job.Applicant.length}):\n• ${applicantList}\n\n🎯 Recruiters (${job.Recruiter.length}):\n• ${recruiterList}`);
+    }
+
+    function exportToCSV() {
+      const headers = ['Job ID', 'Facility', 'City', 'State', 'Weekly Pay', 'Length', 'Start Date', 'Last Interest Date', 'Title', 'Interview Status', 'Applicants', 'Applicant Emails', 'Recruiters'];
+      const csvContent = [headers.join(','), ...filteredJobs.map(job => [
+        job["Job ID"] || '', `"${job.Facility}"`, `"${job.City}"`, `"${job.State}"`, job["Weekly Pay"], job.Length,
+        `"${job["Start Date"] || ''}"`, `"${job["Last Interest Date"] ? new Date(job["Last Interest Date"]).toLocaleDateString() : ''}"`,
+        `"${job.Title || ''}"`, `"${job["Interview Status"] || ''}"`, `"${job.Applicant.join('; ')}"`,
+        `"${job.Applicant.map(name => applicantEmails[name] || 'No email').join('; ')}"`, `"${job.Recruiter.join('; ')}"`,
+      ].join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dietitian-jobs-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    }
+
+    function openEmailModal(name, email, facility, jobId, city, state, weeklyPay, length, startDate) {
+      const firstName = name.split(' ')[0];
+      const subject = `Dietitian Position - ${facility}`;
+      const body = `Hi ${firstName},\n\nI hope this email finds you well. I wanted to reach out regarding the Dietitian position at ${facility} (Job ID: ${jobId}) that you recently showed interest in.\n\nPosition Details:\n- Weekly Pay: $${weeklyPay.toLocaleString()}\n- Duration: ${length} weeks\n- Start Date: ${startDate}\n- Location: ${city}, ${state}\n\nWould you be available for a quick call to discuss this opportunity further?\n\nBest regards`;
+      
+      document.getElementById('emailModalContent').innerHTML = `
+        <div class="mb-6">
+          <h4 class="text-lg font-semibold text-white mb-2">${name}</h4>
+          <p class="text-gray-300 text-sm mb-4">${email}</p>
+          <p class="text-gray-400 text-sm">${facility} - Job #${jobId}</p>
+        </div>
+        <div class="space-y-3">
+          <button onclick="tryMailto('${email}', '${encodeURIComponent(subject)}', '${encodeURIComponent(body)}')" class="email-option-btn">📧 Open Default Email Client</button>
+          <button onclick="openGmail('${email}', '${encodeURIComponent(subject)}', '${encodeURIComponent(body)}')" class="email-option-btn">📮 Open Gmail</button>
+          <button onclick="openOutlook('${email}', '${encodeURIComponent(subject)}', '${encodeURIComponent(body)}')" class="email-option-btn">📫 Open Outlook.com</button>
+          <div class="mt-6 p-4 bg-white/5 rounded-lg">
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm text-gray-300">Email Address:</label>
+              <button onclick="copyToClipboard('${email}', 'email-copy-success')" class="text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded transition-colors">Copy</button>
+            </div>
+            <input type="text" value="${email}" readonly class="w-full p-2 bg-gray-700 text-white rounded text-sm">
+            <div id="email-copy-success" class="copy-success">✓ Copied to clipboard!</div>
+          </div>
+          <div class="mt-4 p-4 bg-white/5 rounded-lg">
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm text-gray-300">Email Template:</label>
+              <button onclick="copyToClipboard(\`Subject: ${subject}\\n\\n${body}\`, 'template-copy-success')" class="text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded transition-colors">Copy All</button>
+            </div>
+            <textarea readonly class="w-full p-2 bg-gray-700 text-white rounded text-sm h-32">Subject: ${subject}\n\n${body}</textarea>
+            <div id="template-copy-success" class="copy-success">✓ Template copied to clipboard!</div>
+          </div>
+        </div>`;
+      document.getElementById('emailModal').style.display = 'flex';
+    }
+
+    function closeEmailModal() { document.getElementById('emailModal').style.display = 'none'; }
+    function tryMailto(email, subject, body) {
+      const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
+      let mailtoWorked = false;
+      function onBlur() { mailtoWorked = true; window.removeEventListener('blur', onBlur); }
+      window.addEventListener('blur', onBlur);
+      window.location.href = mailtoUrl;
+      setTimeout(() => {
+        window.removeEventListener('blur', onBlur);
+        if (!mailtoWorked) alert('💡 Tip: If your email client didn\'t open, try the Gmail or Outlook.com options above, or copy the email address manually.');
+      }, 1000);
+    }
+    function openGmail(email, subject, body) { window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}&body=${body}`, '_blank'); }
+    function openOutlook(email, subject, body) { window.open(`https://outlook.live.com/owa/?path=/mail/action/compose&to=${email}&subject=${subject}&body=${body}`, '_blank'); }
+    async function copyToClipboard(text, successElementId) {
+      try { await navigator.clipboard.writeText(text); showCopySuccess(successElementId); } 
+      catch (err) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text; document.body.appendChild(textarea); textarea.select();
+        document.execCommand('copy'); document.body.removeChild(textarea); showCopySuccess(successElementId);
+      }
+    }
+    function showCopySuccess(elementId) {
+      const element = document.getElementById(elementId);
+      element.classList.add('show');
+      setTimeout(() => element.classList.remove('show'), 2000);
+    }
+    function showAllApplicants(facility, jobId) {
+      const job = jobData.find(j => j.Facility === facility && j["Job ID"] === jobId);
+      if (!job) return;
+      let applicantList = job.Applicant.map(name => {
+        const email = applicantEmails[name];
+        return `• ${name}${email ? ` (${email})` : ' (no email)'}`;
+      }).join('\n');
+      alert(`All Applicants for ${facility}:\n\n${applicantList}`);
+    }
+
+    document.getElementById('emailModal').addEventListener('click', function(e) { if (e.target === this) closeEmailModal(); });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeEmailModal(); });
+
+    function createRecruiterChart() {
+      const canvas = document.getElementById('recruiterChart');
+      const ctx = canvas.getContext('2d');
+      const recruiterCounts = {};
+      jobData.forEach(job => {
+        job.Recruiter.forEach(recruiter => {
+          if (recruiter !== 'Application Review' && recruiter !== 'Needs Review') {
+            recruiterCounts[recruiter] = (recruiterCounts[recruiter] || 0) + 1;
+          }
+        });
+      });
+      const sortedRecruiters = Object.entries(recruiterCounts).sort(([,a], [,b]) => b - a).slice(0, 6);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const padding = 60;
+      const chartWidth = canvas.width - padding * 2;
+      const chartHeight = canvas.height - padding * 2;
+      const barHeight = chartHeight / sortedRecruiters.length;
+      const maxCount = Math.max(...sortedRecruiters.map(([, count]) => count));
+      sortedRecruiters.forEach(([recruiter, count], index) => {
+        const barWidth = (count / maxCount) * chartWidth;
+        const y = padding + index * barHeight;
+        const gradient = ctx.createLinearGradient(padding, 0, padding + barWidth, 0);
+        gradient.addColorStop(0, '#3b82f6'); gradient.addColorStop(1, '#8b5cf6');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(padding, y + 8, barWidth, barHeight - 16);
+        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 12px Inter'; ctx.textAlign = 'left';
+        const displayName = recruiter.length > 15 ? recruiter.substring(0, 15) + '...' : recruiter;
+        ctx.fillText(displayName, 10, y + barHeight/2 + 4);
+        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 14px Inter'; ctx.textAlign = 'center';
+        ctx.fillText(count.toString(), padding + barWidth/2, y + barHeight/2 + 4);
+      });
+    }
+
+    function createPayChart() {
+      const canvas = document.getElementById('payChart');
+      const ctx = canvas.getContext('2d');
+      const stateData = {};
+      jobData.forEach(job => {
+        if (!stateData[job.State]) stateData[job.State] = { total: 0, count: 0 };
+        stateData[job.State].total += job["Weekly Pay"];
+        stateData[job.State].count += 1;
+      });
+      const statePays = Object.entries(stateData).map(([state, data]) => [state, data.total / data.count]).sort(([,a], [,b]) => b - a).slice(0, 8);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const padding = 60;
+      const chartWidth = canvas.width - padding * 2;
